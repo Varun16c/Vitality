@@ -1,6 +1,6 @@
 # 🧬 Vitality – Personalized Health Intelligence Platform
 
-> 🏆 **Awarded "Best Project" - Sem 6**
+> 🏆 **Awarded "Best Project" - Sem 6 TEIT**
 
 **Vitality** is an intelligent healthcare system that uses machine learning to analyze blood biomarkers and predict potential metabolic health risks. The platform addresses the lack of personalized, clinical-data-driven healthcare by providing actionable diet and lifestyle recommendations. 
 
