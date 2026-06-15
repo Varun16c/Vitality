@@ -2,7 +2,7 @@ import { createContext, useContext, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import i18n from "../i18n";
 
-const API_URL = "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 // Transform user-friendly form data → 16 API-expected features
 const transformToAPIPayload = (data) => {

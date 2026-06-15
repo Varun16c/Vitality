@@ -207,7 +207,7 @@ const computeRiskScore = (value, low, high, idealLow, idealHigh) => {
 // Fallback reasoning for historical records without AI reasoning
 const FALLBACK_REASONING = "Your blood parameters have been analyzed and personalised diet and exercise recommendations have been generated. Please refer to the tags below for details.";
 
-const API_URL = "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const SmartDashboard = ({ analysis: propAnalysis }) => {
     const { currentAnalysis, getAnalysisById } = useHealthData();
