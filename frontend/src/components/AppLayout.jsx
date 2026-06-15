@@ -1,8 +1,8 @@
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet, Navigate, NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import AppSidebar from "@/components/AppSidebar";
 import UserAvatarDropdown from "@/components/UserAvatarDropdown";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, Home, LayoutDashboard, FlaskConical, History } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -62,9 +62,29 @@ const AppLayout = () => {
                 </header>
 
                 {/* Page content */}
-                <main className="flex-1 overflow-auto">
+                <main className="flex-1 overflow-auto pb-16 md:pb-0">
                     <Outlet />
                 </main>
+
+                {/* Mobile Bottom Navigation */}
+                <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-border flex items-center justify-around z-40">
+                    <NavLink to="/home" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full space-y-1 ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                        <Home className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">Home</span>
+                    </NavLink>
+                    <NavLink to="/dashboard" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full space-y-1 ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                        <LayoutDashboard className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">Dashboard</span>
+                    </NavLink>
+                    <NavLink to="/new-analysis" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full space-y-1 ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                        <FlaskConical className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">Analysis</span>
+                    </NavLink>
+                    <NavLink to="/history" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full space-y-1 ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                        <History className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">History</span>
+                    </NavLink>
+                </nav>
             </div>
         </div>
     );

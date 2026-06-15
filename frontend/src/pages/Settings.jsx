@@ -79,17 +79,15 @@ const Settings = () => {
         saveSettings({ email_notifications: val, dark_mode: darkMode });
     };
 
-    const handleDeleteAccount = async () => {
+    const handleClearHistory = async () => {
         if (!user?.uid) return;
         try {
-            await fetch(`${API}/api/user/delete_account?uid=${user.uid}`, {
+            await fetch(`${API}/api/user/delete_history?uid=${user.uid}`, {
                 method: "DELETE",
             });
             clearHistory();
-            await logout();
-            navigate("/login");
         } catch (e) {
-            console.error("Delete account error:", e);
+            console.error("Clear history error:", e);
         }
     };
 
@@ -170,7 +168,7 @@ const Settings = () => {
                             <AlertDialogFooter>
                                 <AlertDialogCancel className="rounded-xl">{t("Settings.Cancel")}</AlertDialogCancel>
                                 <AlertDialogAction
-                                    onClick={handleDeleteAccount}
+                                    onClick={handleClearHistory}
                                     className="rounded-xl bg-destructive text-destructive-foreground"
                                 >
                                     {t("Settings.DeleteAll")}

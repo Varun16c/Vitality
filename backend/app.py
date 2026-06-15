@@ -1,11 +1,13 @@
 import os
 import numpy as np
-import sqlite3
 import json
 import smtplib
 import threading
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from datetime import datetime
+from pymongo import MongoClient
+from bson import ObjectId
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pickle import load
@@ -16,12 +18,22 @@ from groq import Groq
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=[
+    "https://vitality.atharvgangawane.me",
+    "http://localhost:5173",
+    "http://localhost:3000"
+])
 
 # Load ML model bundle
-f = open("model.pkl", "rb")
-bundle = load(f)
-f.close()
+print("Starting model load...")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(BASE_DIR, "model.pkl")
+
+with open(model_path, "rb") as f:
+    bundle = load(f)
+
+print("Model loaded successfully")
 
 model_diet = bundle["model_diet"]
 model_exercise = bundle["model_exercise"]
@@ -53,45 +65,14 @@ FEATURE_KEYS = [
     "history_asthma",
 ]
 
-def init_db():
-    con = sqlite3.connect("vitality.db")
-    cursor = con.cursor()
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        health_score INTEGER,
-        key_risk_factor TEXT,
-        full_data TEXT
-    )
-    """)
-    # Migration: add user_id column if table already existed without it
-    try:
-        cursor.execute("ALTER TABLE history ADD COLUMN user_id TEXT")
-    except Exception:
-        pass  # column already exists
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS user_profiles (
-        uid TEXT PRIMARY KEY,
-        phone TEXT DEFAULT '',
-        location TEXT DEFAULT '',
-        blood_type TEXT DEFAULT '',
-        allergies TEXT DEFAULT 'None',
-        medical_conditions TEXT DEFAULT '',
-        height TEXT DEFAULT '',
-        weight TEXT DEFAULT '',
-        age TEXT DEFAULT '',
-        email_notifications INTEGER DEFAULT 1,
-        dark_mode INTEGER DEFAULT 0
-    )
-    """)
-    con.commit()
-    con.close()
-
-init_db()
-print("Database initialized successfully")
+# Initialize MongoDB
+mongo_uri = os.getenv("MONGO_URI")
+try:
+    mongo_client = MongoClient(mongo_uri)
+    db = mongo_client["vitality"]
+    print("MongoDB initialized successfully")
+except Exception as e:
+    print(f"MongoDB connection error: {e}")
 
 def send_health_email(to_email, health_score, key_risk_factor, diet_tags, exercise_tags):
     smtp_email = os.getenv("SMTP_EMAIL")
@@ -205,7 +186,7 @@ def predict():
         health_score = max(0, min(100, health_score))
         key_risk_factor = risks[0] if risks else "None"
 
-        # ─── Save to SQLite ───
+        # ─── Save to MongoDB ───
         try:
             full_record = {
                 **data,
@@ -215,24 +196,24 @@ def predict():
             }
             user_id = data.get("user_id", "")
             user_email = data.get("user_email", "")
-            conn = sqlite3.connect("vitality.db")
-            conn.execute(
-                "INSERT INTO history (user_id, health_score, key_risk_factor, full_data) VALUES (?, ?, ?, ?)",
-                (user_id, health_score, key_risk_factor, json.dumps(full_record))
-            )
+            
+            doc = {
+                "user_id": user_id,
+                "health_score": health_score,
+                "key_risk_factor": key_risk_factor,
+                "full_data": json.dumps(full_record),
+                "created_at": datetime.utcnow()
+            }
+            db.history.insert_one(doc)
             
             if user_id and user_email:
-                cursor = conn.cursor()
-                cursor.execute("SELECT email_notifications FROM user_profiles WHERE uid = ?", (user_id,))
-                row = cursor.fetchone()
-                if not row or row[0] == 1:
+                user_profile = db.user_profiles.find_one({"uid": user_id})
+                if not user_profile or user_profile.get("email_notifications", 1) == 1:
                     threading.Thread(
                         target=send_health_email,
                         args=(user_email, health_score, key_risk_factor, diet_tags, exercise_tags)
                     ).start()
                     
-            conn.commit()
-            conn.close()
         except Exception as db_err:
             print(f"DB insert error: {db_err}")
 
@@ -254,29 +235,26 @@ def predict():
 def get_history():
     try:
         user_id = request.args.get("user_id", "")
-        conn = sqlite3.connect("vitality.db")
-        conn.row_factory = sqlite3.Row
-        if user_id:
-            rows = conn.execute(
-                "SELECT * FROM history WHERE user_id = ? ORDER BY created_at DESC", (user_id,)
-            ).fetchall()
-        else:
-            rows = conn.execute("SELECT * FROM history ORDER BY created_at DESC").fetchall()
-        conn.close()
+        query = {"user_id": user_id} if user_id else {}
+        
+        rows = list(db.history.find(query).sort("created_at", -1))
 
         records = []
         for row in rows:
             full_data = {}
             try:
-                full_data = json.loads(row["full_data"]) if row["full_data"] else {}
+                full_data = json.loads(row.get("full_data", "{}")) if row.get("full_data") else {}
             except Exception:
                 pass
 
+            created_at = row.get("created_at")
+            date_str = created_at.strftime("%Y-%m-%d") if created_at else ""
+
             records.append({
-                "id": row["id"],
-                "date": row["created_at"].split(" ")[0] if row["created_at"] else "",
-                "healthScore": row["health_score"],
-                "keyRisk": row["key_risk_factor"] or "None",
+                "id": str(row["_id"]),
+                "date": date_str,
+                "healthScore": row.get("health_score"),
+                "keyRisk": row.get("key_risk_factor") or "None",
                 "data": full_data,
             })
 
@@ -472,12 +450,9 @@ def get_user_profile():
     if not uid:
         return jsonify({"error": "Missing uid"}), 400
     try:
-        conn = sqlite3.connect("vitality.db")
-        conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT * FROM user_profiles WHERE uid = ?", (uid,)).fetchone()
-        conn.close()
+        row = db.user_profiles.find_one({"uid": uid}, {"_id": 0})
         if row:
-            return jsonify(dict(row))
+            return jsonify(row)
         else:
             return jsonify({
                 "uid": uid, "phone": "", "location": "", "blood_type": "",
@@ -495,22 +470,17 @@ def update_user_profile():
     if not uid:
         return jsonify({"error": "Missing uid"}), 400
     try:
-        conn = sqlite3.connect("vitality.db")
-        conn.execute("""
-            INSERT INTO user_profiles (uid, phone, location, blood_type, allergies, medical_conditions, height, weight, age)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(uid) DO UPDATE SET
-                phone=excluded.phone, location=excluded.location, blood_type=excluded.blood_type,
-                allergies=excluded.allergies, medical_conditions=excluded.medical_conditions,
-                height=excluded.height, weight=excluded.weight, age=excluded.age
-        """, (
-            uid, body.get("phone", ""), body.get("location", ""),
-            body.get("blood_type", ""), body.get("allergies", "None"),
-            body.get("medical_conditions", ""), body.get("height", ""),
-            body.get("weight", ""), body.get("age", "")
-        ))
-        conn.commit()
-        conn.close()
+        update_data = {
+            "phone": body.get("phone", ""),
+            "location": body.get("location", ""),
+            "blood_type": body.get("blood_type", ""),
+            "allergies": body.get("allergies", "None"),
+            "medical_conditions": body.get("medical_conditions", ""),
+            "height": body.get("height", ""),
+            "weight": body.get("weight", ""),
+            "age": body.get("age", "")
+        }
+        db.user_profiles.update_one({"uid": uid}, {"$set": update_data}, upsert=True)
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -523,37 +493,24 @@ def update_user_settings():
     if not uid:
         return jsonify({"error": "Missing uid"}), 400
     try:
-        conn = sqlite3.connect("vitality.db")
-        conn.execute("""
-            INSERT INTO user_profiles (uid, email_notifications, dark_mode)
-            VALUES (?, ?, ?)
-            ON CONFLICT(uid) DO UPDATE SET
-                email_notifications=excluded.email_notifications,
-                dark_mode=excluded.dark_mode
-        """, (
-            uid,
-            1 if body.get("email_notifications", True) else 0,
-            1 if body.get("dark_mode", False) else 0
-        ))
-        conn.commit()
-        conn.close()
+        update_data = {
+            "email_notifications": 1 if body.get("email_notifications", True) else 0,
+            "dark_mode": 1 if body.get("dark_mode", False) else 0
+        }
+        db.user_profiles.update_one({"uid": uid}, {"$set": update_data}, upsert=True)
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/user/delete_account", methods=["DELETE"])
-def delete_user_account():
+@app.route("/api/user/delete_history", methods=["DELETE"])
+def delete_user_history():
     uid = request.args.get("uid", "")
     if not uid:
         return jsonify({"error": "Missing uid"}), 400
     try:
-        conn = sqlite3.connect("vitality.db")
-        conn.execute("DELETE FROM user_profiles WHERE uid = ?", (uid,))
-        conn.execute("DELETE FROM history WHERE user_id = ?", (uid,))
-        conn.commit()
-        conn.close()
-        return jsonify({"status": "ok", "message": "Account data deleted"})
+        db.history.delete_many({"user_id": uid})
+        return jsonify({"status": "ok", "message": "History deleted"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -574,7 +531,7 @@ def upload_photo():
         filename = f"{uid}_{uuid.uuid4().hex[:8]}.{ext}"
         save_path = os.path.join("static", "avatars", filename)
         photo.save(save_path)
-        photo_url = f"http://localhost:5000/static/avatars/{filename}"
+        photo_url = f"{request.host_url}static/avatars/{filename}"
         return jsonify({"status": "ok", "photo_url": photo_url})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
