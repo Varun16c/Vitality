@@ -4,7 +4,7 @@
 
 **Vitality** is an intelligent healthcare system that uses machine learning to analyze blood biomarkers and predict potential metabolic health risks. The platform addresses the lack of personalized, clinical-data-driven healthcare by providing actionable diet and lifestyle recommendations. 
 
-It combines a **React glassmorphism frontend**, a **Flask/SQLite backend**, an **AI-driven OCR microservice**, and a **Multi-Output Random Forest Classifier** to eliminate manual data entry and generate highly specific, downloadable health protocols.
+It combines a **React glassmorphism frontend**, a **Flask/MongoDB backend**, an **AI-driven OCR microservice**, and a **Multi-Output Random Forest Classifier** to eliminate manual data entry and generate highly specific, downloadable health protocols.
 
 ---
 
@@ -12,7 +12,7 @@ It combines a **React glassmorphism frontend**, a **Flask/SQLite backend**, an *
 
 ### 🔐 Secure Onboarding & State Management
 - **Secure Access:** Powered by **Firebase Authentication** (Google Sign-In).
-- **Data Decoupling:** Sensitive medical history and physical parameters are securely persisted in a local **SQLite database**, completely decoupled from the authentication layer.
+- **Data Decoupling:** Sensitive medical history and physical parameters are securely persisted in a cloud **MongoDB Atlas database**, completely decoupled from the authentication layer.
 
 ### 🤖 AI-Driven Clinical OCR
 Vitality eliminates tedious manual entry using an asynchronous microservice pipeline:
@@ -33,23 +33,23 @@ Vitality eliminates tedious manual entry using an asynchronous microservice pipe
 
 ## 🛠️ Technology Stack
 
-| Domain | Tech Used |
-| :--- | :--- |
-| **Frontend** | React.js (Vite), Tailwind CSS, Shadcn UI |
-| **Backend** | Python, Flask, SQLite3, smtplib |
-| **Authentication** | Firebase Authentication (Google Sign-In) |
-| **Machine Learning** | Scikit-learn (Multi-Output Random Forest Classifier), Pandas |
-| **AI / Microservice** | n8n (Workflow Automation), Groq API (Llama 3) |
+| Domain | Tech Used | Deployment |
+| :--- | :--- | :--- |
+| **Frontend** | React.js (Vite), Tailwind CSS, Shadcn UI | **Vercel** (Custom Domain) |
+| **Backend & ML** | Python, Flask, Scikit-learn, Pandas, smtplib | **Hugging Face Spaces** (16GB RAM) |
+| **Database** | MongoDB Atlas | **MongoDB Cloud** |
+| **Authentication** | Firebase Authentication (Google Sign-In) | **Firebase** |
+| **AI / Microservice** | n8n (Automation), Groq API (Llama 3), Caddy | **Azure Linux VM** (South Korea) |
 
 ---
 
 ## 🏗️ System Architecture
 
-1.  **Frontend:** React UI communicates with the Flask backend via REST APIs and handles live state.
+1.  **Frontend:** React UI hosted on **Vercel** communicates with the Flask backend via REST APIs and handles live state.
 2.  **Auth:** Firebase handles secure Google authentication and token management.
-3.  **AI Microservice:** n8n and Groq API process uploaded pathology reports into structured JSON parameters.
-4.  **ML Backend:** The Flask server feeds the clinical parameters into the Random Forest model to classify personalized diet/exercise tags.
-5.  **Database:** SQLite securely stores user profiles, clinical parameters, and generated health plans.
+3.  **AI Microservice:** Self-hosted **n8n** running via Docker on an **Azure VM** processes uploaded pathology reports into structured JSON parameters using the Groq API.
+4.  **ML Backend:** The Flask server hosted on **Hugging Face Spaces** feeds clinical parameters into the Random Forest model to classify personalized diet/exercise tags.
+5.  **Database:** **MongoDB Atlas** securely stores user profiles, clinical parameters, and generated health plans in the cloud.
 
 ---
 
@@ -200,10 +200,17 @@ Vitality/
 
 ---
 
-## 🔮 Future Enhancements
-* ☁️ **Cloud Database Migration:** Move from local SQLite to PostgreSQL (Neon/Supabase) for deployment.
-* 📦 **Cloud Storage:** Migrate local avatar/image uploads to Firebase Storage.
-* 🐍 **Native Backend OCR:** Transition the n8n pipeline into a native Python Flask endpoint for easier cloud hosting.
+## 🔮 Roadmap & Enhancements
+
+### ✅ Completed Milestones
+* [x] **Cloud Database Migration:** Successfully migrated from local SQLite to a distributed MongoDB Atlas cluster.
+* [x] **Production ML Engine:** Deployed the heavy Random Forest classifier to a dedicated Hugging Face Space (16GB RAM tier).
+* [x] **Self-Hosted AI Microservice:** Containerized n8n with Docker and deployed it on an Azure Linux VM to bypass API geo-blocks.
+* [x] **Automated SSL/HTTPS:** Implemented Caddy Reverse Proxy for secure, auto-renewing certificates.
+
+### 🚀 Upcoming Features
+* [ ] 📦 **Cloud Storage:** Migrate local avatar/image uploads to Firebase Storage or AWS S3.
+* [ ] 📊 **Advanced Analytics:** Add longitudinal charting to track biomarkers over time.
 
 ---
 
